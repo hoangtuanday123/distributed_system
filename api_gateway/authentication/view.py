@@ -135,6 +135,17 @@ async def home(request:Request,
     response.raise_for_status()
     return HTMLResponse(content=response.text, status_code=response.status_code)
 
+@auth.get("/calendarcheckin",tags=['user'], response_class=HTMLResponse)
+async def calendarcheckin(request:Request,
+               current_user: Annotated[User, Security(get_current_user_from_token, scopes=["employee","manager"])]):
+    cookies = request.cookies
+    response = requests.get(
+            "http://localhost:8001/calendarcheckin",
+            cookies=cookies
+        )
+    response.raise_for_status()
+    return HTMLResponse(content=response.text, status_code=response.status_code)
+
 @auth.get("/logout",tags=['user'], response_class=HTMLResponse)
 async def logout_get(request:Request,current_user: Annotated[User, Security(get_current_user_from_token, scopes=["employee","manager"])]):
     response = RedirectResponse(url="/")
