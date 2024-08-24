@@ -58,9 +58,10 @@ async def signin(request: Request):
         conn.commit()
         conn.close()
         if id_user is not None:
-    
+            token =await request.cookies.get(settings.COOKIE_NAME)
+            print(str(token))
             user=User(id=id_user[0],rolename=id_user[1])
-            response= RedirectResponse(url=f"/authorizationUser",status_code=status.HTTP_302_FOUND)
+            response= RedirectResponse(url=f"/signin",status_code=status.HTTP_302_FOUND)
             
             #response= RedirectResponse(url=VERIFY_2FA_URL)
             resgister_for_access_token(response=response, user=user)

@@ -110,7 +110,8 @@ class OAuth2PasswordBearerWithCookie(OAuth2):
         return param
 
 
-oauth2_scheme = OAuth2PasswordBearerWithCookie(tokenUrl="token")
+oauth2_scheme = OAuth2PasswordBearerWithCookie(tokenUrl="token",
+                                               scopes={"employee": "employee rights","manager":"manager rights"},)
 
 class User(BaseModel):
     id:int
@@ -120,7 +121,7 @@ class User(BaseModel):
     rolename:str=None
     idprofile:int=None
     statuslogin:bool=False
-    getdate:datetime=None
+    getdate:datetime|None
 
 def create_access_token(data: Dict) -> str:
     to_encode = data.copy()
@@ -133,27 +134,45 @@ def create_access_token(data: Dict) -> str:
     )
     return encoded_jwt
     
-def decode_token(token: str) -> User:
-   
+def decode_token(security_scopes: SecurityScopes,token: str) -> User:
+    if security_scopes.scopes:
+        authenticate_value = f'Bearer scope="{security_scopes.scope_str}"'
+    else:
+        authenticate_value = "Bearer"
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
+        headers={"WWW-Authenticate": authenticate_value},
     )
     
     token = token.removeprefix("Bearer").strip()
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         id: str = payload.get("id")
+        token_scopes = payload.get("rolename", [])
+        email:str=payload.get("email")
+       
+        idprofile:str=payload.get("idprofile")
+       
+        print(id)
+        print(token_scopes)
+        if token_scopes not in security_scopes.scopes:
+            raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not enough permissions",
+            headers={"WWW-Authenticate": authenticate_value},
+        )
         if id is None:
             raise credentials_exception
     except JWTError as e:
         print(e)
         raise credentials_exception
-    
-    user = get_user(id)
+    user=User(id=id,email=email,password="",created_date="",idprofile=idprofile,rolename=token_scopes,statuslogin=1,getdate=None)
+    #user = get_user(id)
     return user
 
-def get_current_user_from_token(security_scopes: SecurityScopes,token: str = Depends(oauth2_scheme)) -> User:
+
+async def get_current_user_from_token(security_scopes: SecurityScopes,token: str = Depends(oauth2_scheme)) -> User:
    
     """
     Get the current user from the cookies in a request.
@@ -161,11 +180,12 @@ def get_current_user_from_token(security_scopes: SecurityScopes,token: str = Dep
     Use this function when you want to lock down a route so that only 
     authenticated users can see access the route.
     """
-    user = decode_token(token)
+
+    user = decode_token(security_scopes,token)
     return user
 
 
-def get_current_user_from_cookie(request: Request) -> User:
+def get_current_user_from_cookie(request: Request,security_scopes: SecurityScopes) -> User:
     """
     Get the current user from the cookies in a request.
     
@@ -173,7 +193,8 @@ def get_current_user_from_cookie(request: Request) -> User:
     for views that should work for both logged in, and not logged in users.
     """
     token = request.cookies.get(settings.COOKIE_NAME)
-    user = decode_token(token)
+    print(str(token))
+    user = decode_token(token,security_scopes)
     return user
 
 def get_user(id:str) -> User:

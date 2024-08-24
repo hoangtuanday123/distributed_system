@@ -4,5 +4,5 @@ def connection():
         host="localhost",
         user="root",
         password="Tuan0843055059#",
-        database="distributed_system"
+        database="authentication_service"
     )

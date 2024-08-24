@@ -2,9 +2,10 @@ import db
 from fastapi import APIRouter,Request,status,Response,Depends,Security,FastAPI
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, RedirectResponse,JSONResponse
-from models import User,get_current_user_from_cookie
-from datetime import datetime
+from models import User,get_current_user_from_cookie,get_current_user_from_token
+from datetime import datetime,date
 from typing import Annotated
+import httpx
 from fastapi.staticfiles import StaticFiles
 leave = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -14,23 +15,22 @@ app = FastAPI(
 )
 app.mount("/static", StaticFiles(directory="static"), name="static")
 @app.get("/requestemployee",tags=['Leave management'], response_class=HTMLResponse)
-async def requestemployee(request:Request
-                          ):
+async def requestemployee(request:Request,
+                          current_user: Annotated[User, Security(get_current_user_from_token, scopes=["employee","manager"])]):
     current_date = datetime.now()
 
     # Lấy tháng và năm hiện tại
     #current_month = current_date.month
     current_year = current_date.year
-    return RedirectResponse(url=f"http://localhost:8000/request/{current_year}/all",status_code=status.HTTP_302_FOUND)
+    return RedirectResponse(url=f"/request/{current_year}/all",status_code=status.HTTP_302_FOUND)
+    #return RedirectResponse(url=f"http://localhost:8000/request/{current_year}/all",status_code=status.HTTP_302_FOUND)
 
 
 
 @app.get("/request/{year}/{type}",tags=["leave"], response_class=HTMLResponse)
-async def request_get(request: Request,year,type):
-    try:
-        current_user = get_current_user_from_cookie(request)
-    except:
-        current_user = None
+async def request_get(request: Request,year,type,
+                      current_user: Annotated[User, Security(get_current_user_from_token, scopes=["employee","manager"])]):
+   
     projects=[]
     projects.append((0,'all'))
     conn=db.connection()
@@ -50,7 +50,7 @@ async def request_get(request: Request,year,type):
 
     select ur.id,p.projecttype,l.task,ur.startdate,ur.enddate,ur.reason,ur.status
     from user_request ur join leave_off l on l.id=ur.idtask join project p on l.projectid=p.id
-    join profileuser pr on pr.id=ur.idprofile where ur.idprofile=%s 
+   where ur.idprofile=%s 
     """
         value=(current_user.idprofile,)
         cursor.execute(sql,value)
@@ -64,7 +64,7 @@ async def request_get(request: Request,year,type):
 
     select ur.id,p.projecttype,l.task,ur.startdate,ur.enddate,ur.reason,ur.status
     from user_request ur join leave_off l on l.id=ur.idtask join project p on l.projectid=p.id
-    join profileuser pr on pr.id=ur.idprofile where ur.idprofile=%s and p.projecttype=%s
+     where ur.idprofile=%s and p.projecttype=%s
     """
         value=(current_user.idprofile,type,)
         cursor.execute(sql,value)
@@ -81,34 +81,37 @@ async def request_get(request: Request,year,type):
         "projects":projects,
         "is_authenticated":1,
         "current_user":current_user,
-        "year":year
+        "year":year,
+        "type":type
     }
     return templates.TemplateResponse("leave/leave.html",context)
 
 @app.post("/request/{year}/{type}",tags=["leave"], response_class=HTMLResponse)
-async def request_post(request: Request,year,type):
-    try:
-        current_user = get_current_user_from_cookie(request)
-    except:
-        current_user = None
+async def request_post(request: Request,year,type,
+                       current_user: Annotated[User, Security(get_current_user_from_token, scopes=["employee","manager"])]):
+    
     form_method=await request.form()
     
     if "yearform" in form_method and form_method.get("yearform")=="yearform":
-        return RedirectResponse(url=f"http://localhost:8000/request/{form_method.get("year")}/{type}",status_code=status.HTTP_302_FOUND)
+        # return RedirectResponse(url=f"http://localhost:8000/request/{form_method.get("year")}/{type}",status_code=status.HTTP_302_FOUND)
+        return RedirectResponse(url=f"/request/{form_method.get('year')}/{type}",status_code=status.HTTP_302_FOUND)
     elif "find" in form_method and form_method.get("find")=="find":
-        return RedirectResponse(url=f"http://localhost:8000/request/{year}/{form_method["projecttype"]}",status_code=status.HTTP_302_FOUND)
+        #return RedirectResponse(url=f"http://localhost:8000/request/{year}/{form_method["projecttype"]}",status_code=status.HTTP_302_FOUND)
+        return RedirectResponse(url=f"/request/{year}/{form_method['projecttype']}",status_code=status.HTTP_302_FOUND)
     elif "addleave" in form_method and form_method.get("addleave")=="addleave":
-        return RedirectResponse(url=f"http://localhost:8000/request_addtask/{year}/{type}",status_code=status.HTTP_302_FOUND)
+        return RedirectResponse(url=f"/request_addtask/{year}/{type}",status_code=status.HTTP_302_FOUND)
     elif 'removeleave' in form_method and form_method['removeleave']=='removeleave':
         selecttiontasks=form_method.getlist('checkbox')
         for select in selecttiontasks:
             removeleaves(select)
-        return RedirectResponse(url=f"http://localhost:8000/request/{year}/{type}",status_code=status.HTTP_302_FOUND)
+        #return RedirectResponse(url=f"http://localhost:8000/request/{year}/{type}",status_code=status.HTTP_302_FOUND)
+        return RedirectResponse(url=f"/request/{year}/{type}",status_code=status.HTTP_302_FOUND)
     elif 'submitleave'in form_method and form_method.get('submitleave')=='submitleave':
         selecttiontasks=form_method.getlist('checkbox')
         for id in selecttiontasks:
             submitleaves(id)
-        return RedirectResponse(url=f"http://localhost:8000/request/{year}/{type}",status_code=status.HTTP_302_FOUND)
+        #return RedirectResponse(url=f"http://localhost:8000/request/{year}/{type}",status_code=status.HTTP_302_FOUND)
+        return RedirectResponse(url=f"/request/{year}/{type}",status_code=status.HTTP_302_FOUND)
 
 @app.post('/get_task',tags=['leave'])
 async def get_task(request:Request):
@@ -126,11 +129,9 @@ async def get_task(request:Request):
     return JSONResponse(content={'tasks':tasks_options})
 
 @app.get("/request_addtask/{year}/{type}",tags=['Leave'],status_code=status.HTTP_302_FOUND)
-async def addtask_get(request:Request,year,type): 
-    try:
-        current_user = get_current_user_from_cookie(request)
-    except:
-        current_user = None
+async def addtask_get(request:Request,year,type,
+                      current_user: Annotated[User, Security(get_current_user_from_token, scopes=["employee","manager"])]): 
+    
     conn=db.connection()
     cursor=conn.cursor()
     sql="select * from project"
@@ -159,22 +160,25 @@ async def addtask_get(request:Request,year,type):
     return templates.TemplateResponse("leave/addleave.html",context)
 
 @app.post("/request_addtask/{year}/{type}",tags=['Leave'],status_code=status.HTTP_302_FOUND)
-async def addtask(request:Request,year,type):
-    try:
-        current_user = get_current_user_from_cookie(request)
-    except:
-        current_user = None
+async def addtask(request:Request,year,type,
+                  current_user: Annotated[User, Security(get_current_user_from_token, scopes=["employee","manager"])]):
+    
     form_method=await request.form() 
     startdate = datetime.strptime(form_method['startdate'], '%Y-%m-%d')
     enddate = datetime.strptime(form_method['enddate'], '%Y-%m-%d')
-    conn=db.connection()
-    cursor=conn.cursor()
-    sql="insert into user_request(idtask,idprofile,startdate,enddate,reason,status)values(%s,%s,%s,%s,%s,'created')"
-    value=(form_method['task'],current_user.idprofile,startdate,enddate,form_method["reason"],)
-    cursor.execute(sql,value)
-    conn.commit()
-    conn.close()
-    return RedirectResponse(url=f"http://localhost:8000/request/{year}/{type}",status_code=status.HTTP_302_FOUND)
+    today = date.today()
+    today_str = today.strftime('%Y-%m-%d')
+    today_datetime = datetime.strptime(today_str, '%Y-%m-%d')
+    if enddate>startdate and startdate>=today_datetime:
+        conn=db.connection()
+        cursor=conn.cursor()
+        sql="insert into user_request(idtask,idprofile,startdate,enddate,reason,status)values(%s,%s,%s,%s,%s,'created')"
+        value=(form_method['task'],current_user.idprofile,startdate,enddate,form_method["reason"],)
+        cursor.execute(sql,value)
+        conn.commit()
+        conn.close()
+        return RedirectResponse(url=f"/request/{year}/{type}",status_code=status.HTTP_302_FOUND)
+    return RedirectResponse(url=f"/request_addtask/{year}/{type}",status_code=status.HTTP_302_FOUND)
 
 
 def removeleaves(leaveid):
@@ -194,11 +198,9 @@ def submitleaves(leaveid):
     conn.close()
 
 @app.get("/annualleaveadmin_view/{type}",tags=['Leave'],status_code=status.HTTP_302_FOUND)
-async def annualleaveadmin_view_get(request:Request,type): 
-    try:
-        current_user = get_current_user_from_cookie(request)
-    except:
-        current_user = None
+async def annualleaveadmin_view_get(request:Request,type,
+                                    current_user: Annotated[User, Security(get_current_user_from_token, scopes=["manager"])]): 
+ 
     projects=[]
     projects.append((0,'all'))
     conn=db.connection()
@@ -214,10 +216,14 @@ async def annualleaveadmin_view_get(request:Request,type):
     if type=='all':
         conn=db.connection()
         cursor=conn.cursor()
+    #     sql="""
+    #     select ur.id,pr.fullname ,p.projecttype,l.task,ur.startdate,ur.enddate,ur.reason,ur.status
+    # from user_request ur join leave_off l on l.id=ur.idtask join project p on l.projectid=p.id
+    # join profileuser pr on pr.id=ur.idprofile where ur.status!='created'"""
         sql="""
-        select ur.id,pr.fullname ,p.projecttype,l.task,ur.startdate,ur.enddate,ur.reason,ur.status
-    from user_request ur join leave_off l on l.id=ur.idtask join project p on l.projectid=p.id
-    join profileuser pr on pr.id=ur.idprofile where ur.status!='created'"""
+            select ur.id,ur.idprofile ,p.projecttype,l.task,ur.startdate,ur.enddate,ur.reason,ur.status
+        from user_request ur join leave_off l on l.id=ur.idtask join project p on l.projectid=p.id
+         where ur.status!='created'"""
         cursor.execute(sql)
         leave_temp=cursor.fetchall()
         conn.commit()
@@ -225,16 +231,27 @@ async def annualleaveadmin_view_get(request:Request,type):
     else:
         conn=db.connection()
         cursor=conn.cursor()
+    #     sql="""
+    #     select ur.id,pr.fullname ,p.projecttype,l.task,ur.startdate,ur.enddate,ur.reason,ur.status
+    # from user_request ur join leave_off l on l.id=ur.idtask join project p on l.projectid=p.id
+    # join profileuser pr on pr.id=ur.idprofile where ur.status!='created' and p.projecttype=%s"""
         sql="""
-        select ur.id,pr.fullname ,p.projecttype,l.task,ur.startdate,ur.enddate,ur.reason,ur.status
+        select ur.id,ur.idprofile,p.projecttype,l.task,ur.startdate,ur.enddate,ur.reason,ur.status
     from user_request ur join leave_off l on l.id=ur.idtask join project p on l.projectid=p.id
-    join profileuser pr on pr.id=ur.idprofile where ur.status!='created' and p.projecttype=%s"""
+     where ur.status!='created' and p.projecttype=%s"""
         cursor.execute(sql,(type,))
         leave_temp=cursor.fetchall()
         conn.commit()
         conn.close()
-    leaves=[(leave[0],leave[1],leave[2],leave[3],leave[4],
-             leave[5],leave[6],leave[7])for leave in leave_temp]
+    cookies = request.cookies
+    leaves=[]
+    for leave in leave_temp:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"/getprofile/{leave[1]}",cookies=cookies)
+            response=response.json()
+            profile=response["profile"]
+            leaves.append((leave[0],profile[1],leave[2],leave[3],leave[4],
+                    leave[5],leave[6],leave[7]))
     context={
         "request":request,
         "roleuser":"manager",
@@ -243,27 +260,32 @@ async def annualleaveadmin_view_get(request:Request,type):
         "leaves":leaves,
         "projects":projects,
         "is_authenticated":1,
-        "current_user":current_user
+        "current_user":current_user,
+        "type":type
     }
     return templates.TemplateResponse("leave/annualleaveadminview.html",context)
 
 @app.post("/annualleaveadmin_view/{type}",tags=['leave'],status_code=status.HTTP_302_FOUND)
-async def annualleaveadmin_view(request:Request,type): 
-    try:
-        current_user = get_current_user_from_cookie(request)
-    except:
-        current_user = None
+async def annualleaveadmin_view(request:Request,type,
+                                current_user: Annotated[User, Security(get_current_user_from_token, scopes=["manager"])]): 
+    # try:
+    #     current_user = get_current_user_from_cookie(request)
+    # except:
+    #     current_user = None
     form_method=await request.form()
     if "approvals" in form_method and form_method.get('approvals')=="approvals":
         sellectionItem=form_method.getlist("checkbox")
         approvaldayoff(sellectionItem)
-        return RedirectResponse(url=f"http://localhost:8000/annualleaveadmin_view/{type}",status_code=status.HTTP_302_FOUND)
+        #return RedirectResponse(url=f"http://localhost:8000/annualleaveadmin_view/{type}",status_code=status.HTTP_302_FOUND)
+        return RedirectResponse(url=f"/annualleaveadmin_view/{type}",status_code=status.HTTP_302_FOUND)
     elif "pendingapprovals" in form_method and form_method.get('pendingapprovals')=="pendingapprovals":
         sellectionItem=form_method.getlist("checkbox")
         pendingapprovaldayoff(sellectionItem)
-        return RedirectResponse(url=f"http://localhost:8000/annualleaveadmin_view/{type}",status_code=status.HTTP_302_FOUND)
+        #return RedirectResponse(url=f"http://localhost:8000/annualleaveadmin_view/{type}",status_code=status.HTTP_302_FOUND)
+        return RedirectResponse(url=f"/annualleaveadmin_view/{type}",status_code=status.HTTP_302_FOUND)
     elif "find" in form_method and form_method.get('find')=="find":
-        return RedirectResponse(url=f"http://localhost:8000/annualleaveadmin_view/{form_method["projecttype"]}",status_code=status.HTTP_302_FOUND)
+        #return RedirectResponse(url=f"http://localhost:8000/annualleaveadmin_view/{form_method["projecttype"]}",status_code=status.HTTP_302_FOUND)
+        return RedirectResponse(url=f"/annualleaveadmin_view/{form_method['projecttype']}",status_code=status.HTTP_302_FOUND)
 
 
 def approvaldayoff(selectionItem):

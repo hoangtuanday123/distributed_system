@@ -19,7 +19,7 @@
                     <form method="post" class="d-flex align-items-center">
                         <label for="projecttype" class="mr-2 font-weight-bold" style="width: 90px;"> Select project type </label>
                         <select id="projecttype" name="projecttype" class="custom-select mr-2">
-                    
+                            <option value="{{ type }}">{{ type }}</option>
                             {% for project in projects %}
                             <option value="{{ project[1] }}">{{ project[1] }}</option>
                             {% endfor %}

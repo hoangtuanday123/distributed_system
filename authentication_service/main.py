@@ -10,6 +10,7 @@ from ultils import settings,file_path_default
 from typing import Annotated
 from fastapi.security import  OAuth2PasswordRequestForm
 from datetime import datetime
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 templates = Jinja2Templates(directory="templates")
@@ -40,7 +41,8 @@ async def signin_get(request: Request):
 
 @app.post("resgisteraccersstoken",tags=["authentication"])
 def resgister_for_access_token(response: Response, user: OAuth2PasswordRequestForm = Depends()) -> Dict[str, str]:
-    access_token = create_access_token(data={"id":user.id,"rolename":user.rolename})
+    access_token = create_access_token(data={"id":user.id,"rolename":user.rolename,"email":user.email,"idprofile":user.idprofile
+                                             })
     response.set_cookie(
         key=settings.COOKIE_NAME, 
         value=f"Bearer {access_token}", 
@@ -51,6 +53,17 @@ def resgister_for_access_token(response: Response, user: OAuth2PasswordRequestFo
     #return response
     return {settings.COOKIE_NAME: access_token, "token_type": "bearer"}
 
+@app.get("/getprofile/{idaccount}",tags=["authentication"], response_class=HTMLResponse)
+async def getprofile(idaccount,
+                            current_user: Annotated[User, Security(get_current_user_from_token, scopes=["employee","manager"])]):
+    conn=db.connection()
+    cursor=conn.cursor()
+    sql="select * from profileuser where idaccount=%s"
+    value=(int(idaccount),)
+    cursor.execute(sql,value)
+    user_temp=cursor.fetchone()
+    return JSONResponse(content={"profile": user_temp})
+    return str(user_temp)
 
 
 @app.post("/signin",tags=["authentication"], response_class=HTMLResponse)
@@ -62,18 +75,17 @@ async def signin(request: Request):
     form = LoginForm(request)
     await form.load_data()
     if await form.is_valid():
-      
         conn=db.connection()
         cursor=conn.cursor()
-        sql="select a.id,r.rolename from account a join roleuser r on a.role_id=r.id where a.email=%s and a.password=%s"
+        sql="select a.*,p.id,r.rolename from account a join profileuser p on a.id=p.idaccount join roleuser r on r.id=a.role_id where a.email=%s and a.password=%s"
         values=(form.email, form.password,)
         cursor.execute(sql,values)
-        id_user =cursor.fetchone()
+        user_temp =cursor.fetchone()
         conn.commit()
         conn.close()
-        if id_user is not None:
-    
-            user=User(id=id_user[0],rolename=id_user[1])
+        if user_temp is not None:
+            
+            user=User(id=user_temp[0],email=user_temp[1],password=user_temp[2],created_date=user_temp[3].strftime('%Y-%m-%d %H:%M:%S'),idprofile=user_temp[5],rolename=user_temp[6],statuslogin=1,getdate=datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
             response= RedirectResponse(url=f"/authorizationUser",status_code=status.HTTP_302_FOUND)
             
             #response= RedirectResponse(url=VERIFY_2FA_URL)
@@ -206,4 +218,23 @@ async def calendarcheckin(request:Request,
     }
     return templates.TemplateResponse("authentication/calendarcheckin.html",context)
 
-        
+@app.get("/logout",tags=['user'], response_class=HTMLResponse)
+async def logout_get(request:Request,current_user: Annotated[User, Security(get_current_user_from_token, scopes=["employee","manager"])]):
+    
+    response = RedirectResponse(url="/signin",status_code=status.HTTP_302_FOUND)
+    response.delete_cookie(settings.COOKIE_NAME)
+    response.delete_cookie('roleuser')
+    response.delete_cookie('rolemanager')
+    response.delete_cookie('image_path_manager')
+    response.delete_cookie('fullname_manager')
+    response.delete_cookie('image_path_session')
+    response.delete_cookie('fullname_session')
+
+    conn=db.connection()
+    cursor=conn.cursor()
+    sql="update calendar set checkout=%s where id=%s"
+    value=(datetime.now(),int(request.cookies.get("checkinid")),)
+    cursor.execute(sql,value)
+    conn.commit()
+    conn.close()
+    return response
