@@ -1,7 +1,7 @@
 from forms import LoginForm
 import db
 from models import User,get_current_user_from_cookie,get_current_user_from_token
-from fastapi import APIRouter,Request,status,Response,Depends,FastAPI,Security
+from fastapi import APIRouter,Request,status,Response,Depends,FastAPI,Security,Form,HTTPException
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, RedirectResponse
 from models import create_access_token,User,user_avatar
@@ -96,6 +96,7 @@ async def signin(request: Request):
             messages=[("danger","Invalid username and/or password.")]
             response= RedirectResponse(url="/signin",status_code=status.HTTP_302_FOUND)
             return response
+    return RedirectResponse(url="/signin",status_code=status.HTTP_302_FOUND)
         
 @app.get("/authorizationUser",tags=['authentication'])
 async def authorizationUser(request:Request,response:Response,
@@ -123,7 +124,7 @@ async def authorizationUser(request:Request,response:Response,
     conn=db.connection()
     cursor=conn.cursor()
     sql="insert into calendar(checkin,idaccount) values(%s,%s)"
-    value=(datetime.now(),user_temp[0],)
+    value=(datetime.now(),current_user.id,)
     cursor.execute(sql,value)
     conn.commit()
     conn.close()
@@ -238,3 +239,273 @@ async def logout_get(request:Request,current_user: Annotated[User, Security(get_
     conn.commit()
     conn.close()
     return response
+
+
+
+@app.get("/profile", tags=["manageProfile"], response_class=HTMLResponse)
+async def displayAllProfile(request: Request,current_user: Annotated[User, Security(get_current_user_from_token, scopes=["employee","manager"])]):
+    
+    role = request.cookies.get("roleuser")
+    conn = db.connection()
+    cursor = conn.cursor()
+    sql = " "
+    if role == "manager":
+        sql = "select * from profileuser"
+        cursor.execute(sql)
+        profiles = cursor.fetchall()
+        conn.commit()
+        conn.close()
+        context = {
+        "request": request,
+        "profiles": profiles,
+        "roleuser":request.cookies.get("roleuser"),
+        "image_path":request.cookies.get("image_path_session"),
+        "fullname":request.cookies.get("fullname_session"),
+        "is_authenticated":1,
+        "current_user":current_user
+        }
+        return templates.TemplateResponse("authentication/displayAllProfiles.html",context)
+    elif role == "employee":
+        sql = "select * from profileuser where idaccount = %s"
+        id = (current_user.id,)
+        print(current_user.id)
+        cursor.execute(sql,id)
+        profiles = cursor.fetchall()
+        conn.commit()
+        conn.close()
+        context = {
+        "request": request,
+        "profiles": profiles,
+        "roleuser":request.cookies.get("roleuser"),
+        "image_path":request.cookies.get("image_path_session"),
+        "fullname":request.cookies.get("fullname_session"),
+        "is_authenticated":1,
+        "current_user":current_user
+        }
+    
+    return templates.TemplateResponse("authentication/displayAllProfiles.html",context)
+    
+    # sql = "select * from profileuser"
+    
+
+
+@app.get("/updateProfile", tags=["manageProfile"],response_class=HTMLResponse)
+async def displayCurrentProfile(request:Request,profileId: int, current_user: Annotated[User, Security(get_current_user_from_token, scopes=["employee","manager"])]):
+
+    conn = db.connection()
+    cursor = conn.cursor()
+    sql = "select p.id, p.fullname, p.cccd, p.tax, p.phone, p.address, p.bankcode, p.bankname, r.id, r.rolename from profileuser p, account a, roleuser r where p.idaccount = a.id and a.role_id = r.id and p.id = %s"
+    id = (profileId,)
+    cursor.execute(sql,id)
+    profiles = cursor.fetchall()
+
+    sql = "select * from roleuser where rolename !=(select r.rolename from profileuser p, account a, roleuser r where p.idaccount = a.id and a.role_id = r.id and p.id = %s)"
+    id = (profileId,)
+    cursor.execute(sql,id)
+    roleusers = cursor.fetchall()
+
+    context = {
+        "request": request,
+        "profileId":profileId,
+        "profiles": profiles,
+        "roleusers": roleusers,
+        "roleuser":request.cookies.get("roleuser"),
+        "image_path":request.cookies.get("image_path_session"),
+        "fullname":request.cookies.get("fullname_session"),
+        "is_authenticated":1,
+        "current_user":current_user
+    }
+    return templates.TemplateResponse("authentication/updateProfile.html",context)
+
+@app.get("/viewProfile", tags=["manageProfile"],response_class=HTMLResponse)
+async def displayCurrentProfile(request:Request,profileId: int, current_user: Annotated[User, Security(get_current_user_from_token, scopes=["employee","manager"])]):
+    conn = db.connection()
+    cursor = conn.cursor()
+    sql = "select * from profileuser where id= %s"
+    id = (profileId,)
+    cursor.execute(sql,id)
+    profiles = cursor.fetchall()
+    conn.commit()
+    conn.close()
+    context = {
+        "request": request,
+        "profileId":profileId,
+        "profiles": profiles,
+        "roleuser":request.cookies.get("roleuser"),
+        "image_path":request.cookies.get("image_path_session"),
+        "fullname":request.cookies.get("fullname_session"),
+        "is_authenticated":1,
+        "current_user":current_user
+    }
+    return templates.TemplateResponse("authentication/viewProfile.html",context)
+
+# @app.post("/requestUpdate",tags=["manageProfile"],response_class=HTMLResponse)
+# async def requestUpdate(request: Request,current_user: Annotated[User, Security(get_current_user_from_token, scopes=["employee","manager"])]):
+#     form_method = await request.form()
+
+
+@app.post("/saveProfileManager",tags=["manageProfile"],status_code=status.HTTP_302_FOUND)
+async def updateProfile(
+    request: Request,current_user: Annotated[User, Security(get_current_user_from_token, scopes=["employee","manager"])],
+    profileId: int = Form(...),
+    fullname: str = Form(...),
+    nationalId: str = Form(...),
+    taxnumber: str = Form(...),
+    phonenumber: str = Form(...),
+    address: str = Form(...),
+    bankcode: str = Form(...),
+    bankname: str = Form(...),
+    role: int = Form(...)
+    ):
+    conn = db.connection()
+    cursor = conn.cursor()
+    sql = "update profileuser set fullname = %s, cccd = %s, tax = %s, phone = %s, address = %s, bankcode = %s, bankname = %s where id = %s"
+    value = (fullname,nationalId,taxnumber,phonenumber,address,bankcode,bankname,profileId,)
+    cursor.execute(sql,value)
+    conn.commit()
+    conn.close()
+
+    con1 = db.connection()
+    cur1 = con1.cursor()
+    sql1 = "select idaccount from profileuser where id = %s"
+    val1 = (profileId,)
+    cur1.execute(sql1,val1)
+    idas = cur1.fetchone()
+    x = idas[0]
+    
+    sql1 = "update account set role_id = %s where id = %s"
+    val1 = (role,x,)
+    cur1.execute(sql1,val1)
+    con1.commit()
+    con1.close()
+    
+    return RedirectResponse(url="/profile",status_code=status.HTTP_302_FOUND)
+
+@app.post("/saveProfileEmployee",tags=["manageProfile"],status_code=status.HTTP_302_FOUND)
+async def updateProfile(
+    request: Request,current_user: Annotated[User, Security(get_current_user_from_token, scopes=["employee","manager"])],
+    profileId: int = Form(...),
+    fullname: str = Form(...),
+    nationalId: str = Form(...),
+    taxnumber: str = Form(...),
+    phonenumber: str = Form(...),
+    address: str = Form(...),
+    bankcode: str = Form(...),
+    bankname: str = Form(...),
+    
+    ):
+    conn = db.connection()
+    cursor = conn.cursor()
+    sql = "update profileuser set fullname = %s, cccd = %s, tax = %s, phone = %s, address = %s, bankcode = %s, bankname = %s where id = %s"
+    value = (fullname,nationalId,taxnumber,phonenumber,address,bankcode,bankname,profileId,)
+    cursor.execute(sql,value)
+    conn.commit()
+    conn.close()    
+    return RedirectResponse(url="/profile",status_code=status.HTTP_302_FOUND)
+# checking whether registeredEmail has already existed 
+@app.post("/checkEmail",tags=["manageProfile"])
+async def checkEmail(request: Request,current_user: Annotated[User, Security(get_current_user_from_token, scopes=["manager"])]):
+    data = await request.json()
+    email = data.get("email")
+
+    conn = db.connection()
+    cursor = conn.cursor()
+    sql = "select * from account where email = %s"
+    value = (email,)
+    cursor.execute(sql,value)
+    check = cursor.fetchone()
+    conn.commit()
+    conn.close()
+    if check:
+        raise HTTPException(status_code=400, detail="Email already exists")
+    return {"detail": "Email is available"}
+
+
+@app.get("/createAccount",tags=["manageProfile"],response_class=HTMLResponse)
+async def displayCreateAccountForm(request:Request,current_user: Annotated[User, Security(get_current_user_from_token, scopes=["manager"])]):
+    conn = db.connection()
+    cursor = conn.cursor()
+    sql = "select * from roleuser"
+    cursor.execute(sql)
+    roleusers = cursor.fetchall()
+
+    sql = "select count(*) from account where id not in (select idaccount from profileuser)"
+    cursor.execute(sql)
+    count = cursor.fetchone()
+    check = count[0]
+
+    if (check != 0 ):
+        return RedirectResponse(url="/addProfile",status_code=status.HTTP_302_FOUND)
+    else:
+        context = {
+            "request": request,
+            "roleusers": roleusers,
+            "roleuser":request.cookies.get("roleuser"),
+            "image_path":request.cookies.get("image_path_session"),
+            "fullname":request.cookies.get("fullname_session"),
+            "is_authenticated":1,
+            "current_user":current_user
+        }
+        return templates.TemplateResponse("authentication/createAccount.html",context)
+
+@app.post("/createAccount",tags=["manageProfile"])
+async def addNewAccount(
+    request:Request,
+    current_user: Annotated[User, Security(get_current_user_from_token, scopes=["manager"])]
+    ):
+
+
+    data = await request.json()
+    email = data.get("email")
+    password = data.get("password")
+    role = data.get("role")
+    conn = db.connection()
+    cursor = conn.cursor()
+    sql = "insert into account(email,password,created_date,role_id) values (%s,%s,curdate(),%s)"
+    value = (email,password,role,)
+    cursor.execute(sql,value)
+    conn.commit()
+    conn.close()
+    
+
+@app.get("/addProfile",tags=["manageProfile"],response_class=HTMLResponse)
+async def displayAddProfileForm(request:Request,current_user: Annotated[User, Security(get_current_user_from_token, scopes=["manager"])]):
+    conn = db.connection()
+    cursor = conn.cursor()
+    sql = "select * from account where id not in (select idaccount from profileuser) order by id desc"
+    cursor.execute(sql)
+    emails = cursor.fetchall()
+    conn.commit()
+    conn.close()
+    context = {
+        "request": request,
+        "emails": emails,
+        "roleuser":request.cookies.get("roleuser"),
+        "image_path":request.cookies.get("image_path_session"),
+        "fullname":request.cookies.get("fullname_session"),
+        "is_authenticated":1,
+        "current_user":current_user
+    }
+    return templates.TemplateResponse("authentication/addProfile.html",context)
+
+@app.post("/addProfile",tags=["manageProfile"],status_code=status.HTTP_302_FOUND)
+async def addProfile(request:Request,current_user: Annotated[User, Security(get_current_user_from_token, scopes=["manager"])],
+                    email: int = Form(...),
+                    fullname: str = Form(...),
+                    nationalId: str = Form(...),
+                    taxnumber: str = Form(...),
+                    phonenumber: str = Form(...),
+                    address: str = Form(...),
+                    bankcode: str = Form(...),
+                    bankname: str = Form(...),
+                    ):
+    
+    conn = db.connection()
+    cursor = conn.cursor()
+    sql = "insert into profileuser(fullname,cccd,tax,phone,address,bankcode,bankname,idaccount) value (%s,%s,%s,%s,%s,%s,%s,%s)"
+    value = (fullname,nationalId,taxnumber,phonenumber,address,bankcode,bankname,email,)
+    cursor.execute(sql,value)
+    conn.commit()
+    conn.close()
+    return RedirectResponse(url="/profile",status_code=status.HTTP_302_FOUND)
+
