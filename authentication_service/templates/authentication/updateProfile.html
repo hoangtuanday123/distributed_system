@@ -6,9 +6,13 @@
         <h3 class="mb-0">Update Profile</h3>
       </div>
       <div class="card-body">
-        
         {%if is_authenticated==1 and roleuser == "manager" %}
-        <form role="form" method="post" action="/saveProfileManager" class="form">
+        <form
+          role="form"
+          method="post"
+          action="/saveProfileManager"
+          class="form"
+        >
           <div class="form-group">
             <label>Profile id</label>
             {% for profile in profiles %}
@@ -32,6 +36,9 @@
               name="fullname"
               class="form-control"
               value="{{profile[1]}}"
+              pattern="[A-Za-z ]+"
+              title="Name must only contain alphabetic characters."
+              required
             />
             {% endfor %}
           </div>
@@ -45,6 +52,11 @@
               name="nationalId"
               class="form-control"
               value="{{profile[2]}}"
+              pattern="\d{12}"
+              maxlength="12"
+              
+              title="National ID must contain exactly 12 digits."
+              required
             />
             {% endfor %}
           </div>
@@ -58,6 +70,9 @@
               name="taxnumber"
               class="form-control"
               value="{{profile[3]}}"
+              pattern="\d{10}"
+              title="Tax number must only contain 10 digits."
+              required
             />
             {% endfor %}
           </div>
@@ -71,6 +86,9 @@
               name="phonenumber"
               class="form-control"
               value="{{profile[4]}}"
+              pattern="\d{10}"
+              title="Phone number must only contain 10 digits"
+              required
             />
             {% endfor %}
           </div>
@@ -84,6 +102,9 @@
               name="address"
               class="form-control"
               value="{{profile[5]}}"
+              pattern="[A-Za-z0-9, ]*"
+              title="Address must only contain alphabetic characters and numbers"
+              required
             />
             {% endfor %}
           </div>
@@ -97,6 +118,11 @@
               name="bankcode"
               class="form-control"
               value="{{profile[6]}}"
+              pattern="\d{5,20}"
+              minlength="5"
+              maxlength="20"
+              title="Bank code must contain 5 to 20 digits."
+              required
             />
             {% endfor %}
           </div>
@@ -110,6 +136,9 @@
               name="bankname"
               class="form-control"
               value="{{profile[7]}}"
+              pattern="[A-Za-z]+"
+              title="Bank name must only contain alphabetic characters."
+              required
             />
             {% endfor %}
           </div>
@@ -119,23 +148,30 @@
             <select class="form-control" id="role" name="role">
               {% for profile in profiles %}
               <option value="{{ profile[8] }}">{{ profile[9] }}</option>
-              {% endfor %}
-
-              {% for roleuser in roleusers %}
+              {% endfor %} {% for roleuser in roleusers %}
               <option value="{{ roleuser[0] }}">{{ roleuser[1] }}</option>
               {% endfor %}
             </select>
           </div>
 
-          <br>
+          <br />
           <div class="form-group">
-            <button type="submit" class="btn btn-success float-right mr-3" name="saveProfileBtn">
+            <button
+              type="submit"
+              class="btn btn-success float-right mr-3"
+              name="saveProfileBtn"
+            >
               Save
             </button>
           </div>
         </form>
         {% elif is_authenticated==1 and roleuser == "employee" and fullname %}
-        <form role="form" method="post" action="/saveProfileEmployee" class="form">
+        <form
+          role="form"
+          method="post"
+          action="/saveProfileEmployee"
+          class="form"
+        >
           <div class="form-group">
             <label>Profile id</label>
             {% for profile in profiles %}
@@ -159,6 +195,9 @@
               name="fullname"
               class="form-control"
               value="{{profile[1]}}"
+              pattern="[A-Za-z ]+"
+              title="Name must only contain alphabetic characters."
+              required
             />
             {% endfor %}
           </div>
@@ -172,6 +211,10 @@
               name="nationalId"
               class="form-control"
               value="{{profile[2]}}"
+              pattern="\d{12}"
+              maxlength="12"
+              title="National ID must contain exactly 12 digits."
+              required
             />
             {% endfor %}
           </div>
@@ -185,6 +228,9 @@
               name="taxnumber"
               class="form-control"
               value="{{profile[3]}}"
+              pattern="\d{10}"
+              title="Tax number must only contain 10 digits."
+              required
             />
             {% endfor %}
           </div>
@@ -198,6 +244,9 @@
               name="phonenumber"
               class="form-control"
               value="{{profile[4]}}"
+              pattern="\d{10}"
+              title="Phone number must only contain 10 digits"
+              required
             />
             {% endfor %}
           </div>
@@ -211,6 +260,9 @@
               name="address"
               class="form-control"
               value="{{profile[5]}}"
+              pattern="[A-Za-z0-9, ]*"
+              title="Address must only contain alphabetic characters and numbers"
+              required
             />
             {% endfor %}
           </div>
@@ -224,6 +276,11 @@
               name="bankcode"
               class="form-control"
               value="{{profile[6]}}"
+              pattern="\d{5,20}"
+              minlength="5"
+              maxlength="20"
+              title="Bank code must contain 5 to 20 digits."
+              required
             />
             {% endfor %}
           </div>
@@ -237,12 +294,19 @@
               name="bankname"
               class="form-control"
               value="{{profile[7]}}"
+              pattern="[A-Za-z]+"
+              title="Bank name must only contain alphabetic characters."
+              required
             />
             {% endfor %}
           </div>
-          <br>
+          <br />
           <div class="form-group">
-            <button type="submit" class="btn btn-success float-right mr-3" name="saveProfileBtn">
+            <button
+              type="submit"
+              class="btn btn-success float-right mr-3"
+              name="saveProfileBtn"
+            >
               Save
             </button>
           </div>

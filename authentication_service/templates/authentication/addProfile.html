@@ -7,7 +7,6 @@
       </div>
       <div class="card-body">
         <form role="form" method="post" class="form" action="/addProfile">
-          
           <div class="form-group">
             <label>Email</label>
             <select class="form-control" id="email" name="email">
@@ -24,6 +23,8 @@
               id="fullname"
               name="fullname"
               class="form-control"
+              pattern="[A-Za-z ]+"
+              title="Name must only contain alphabetic characters."
               required
             />
           </div>
@@ -35,6 +36,9 @@
               id="nationalId"
               name="nationalId"
               class="form-control"
+              pattern="\d{12}"
+              maxlength="12"
+              title="National ID must contain exactly 12 digits."
               required
             />
           </div>
@@ -46,6 +50,8 @@
               id="taxnumber"
               name="taxnumber"
               class="form-control"
+              pattern="\d{10}"
+              title="Tax number must only contain 10 digits."
               required
             />
           </div>
@@ -57,6 +63,8 @@
               id="phonenumber"
               name="phonenumber"
               class="form-control"
+              pattern="\d{10}"
+              title="Phone number must only contain 10 digits"
               required
             />
           </div>
@@ -68,6 +76,8 @@
               id="address"
               name="address"
               class="form-control"
+              pattern="[A-Za-z0-9, ]*"
+              title="Address must only contain alphabetic characters and numbers"
               required
             />
           </div>
@@ -79,6 +89,10 @@
               id="bankcode"
               name="bankcode"
               class="form-control"
+              pattern="\d{5,20}"
+              minlength="5"
+              maxlength="20"
+              title="Bank code must contain 5 to 20 digits."
               required
             />
           </div>
@@ -90,16 +104,21 @@
               id="bankname"
               name="bankname"
               class="form-control"
+              pattern="[A-Za-z]+"
+              title="Bank name must only contain alphabetic characters."
               required
             />
           </div>
 
           <div class="form-group">
-            <button type="submit" class="btn btn-success float-right mr-3" name="saveProfileBtn">
+            <button
+              type="submit"
+              class="btn btn-success float-right mr-3"
+              name="saveProfileBtn"
+            >
               Add profile
             </button>
           </div>
-
         </form>
       </div>
     </div>
