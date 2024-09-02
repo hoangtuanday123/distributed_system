@@ -247,7 +247,7 @@ async def annualleaveadmin_view_get(request:Request,type,
     leaves=[]
     for leave in leave_temp:
         async with httpx.AsyncClient() as client:
-            response = await client.get(f"/getprofile/{leave[1]}",cookies=cookies)
+            response = await client.get(f"http://localhost:8000/getprofile/{leave[1]}",cookies=cookies)
             response=response.json()
             profile=response["profile"]
             leaves.append((leave[0],profile[1],leave[2],leave[3],leave[4],
